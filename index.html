@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>Flappy Face - Space Burger Fun</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #000;
+            font-family: 'Arial Black', sans-serif;
+        }
+
+        #gameWrapper { position: relative; width: 100vw; height: 100vh; }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* DEATH SCREEN */
+        #deathScreen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(150,0,0,0.9) 0%, rgba(0,0,0,1) 100%);
+            display: none; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 1000; text-align: center;
+        }
+
+        #deathText {
+            color: #fff; font-size: clamp(50px, 15vw, 150px);
+            text-shadow: 0 0 20px #ff0000, 5px 5px 0px #550000;
+            margin: 0; animation: shake 0.1s infinite;
+        }
+
+        #retryHint { color: #ffff00; font-size: 20px; margin-top: 20px; letter-spacing: 2px; }
+
+        @keyframes shake {
+            0% { transform: translate(3px, 3px); }
+            50% { transform: translate(-3px, -3px); }
+            100% { transform: translate(3px, -3px); }
+        }
+
+        #scoreDisplay {
+            position: absolute; top: 30px; width: 100%; text-align: center;
+            color: white; font-size: 100px; pointer-events: none;
+            z-index: 10; text-shadow: 4px 4px 0px #ff00ff;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameWrapper">
+        <div id="scoreDisplay">0</div>
+        <div id="deathScreen">
+            <h1 id="deathText">ANO DIED</h1>
+            <div id="retryHint">CLICK TO TRY AGAIN</div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const scoreDisplay = document.getElementById("scoreDisplay");
+const deathScreen = document.getElementById("deathScreen");
+
+const birdImg = new Image();
+birdImg.src = "player.jpg"; 
+let imgLoaded = false;
+birdImg.onload = () => { imgLoaded = true; };
+
+let bird, pipes, stars, frame, score, gameRunning, bgScroll = 0;
+
+function init() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    bird = { x: canvas.width * 0.2, y: canvas.height / 2, w: 70, h: 70, gravity: 0.6, lift: -11, velocity: 0 };
+    pipes = [];
+    stars = Array.from({length: 100}, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: Math.random() * 3,
+        speed: Math.random() * 2 + 1
+    }));
+    
+    frame = 0; score = 0; gameRunning = true;
+    scoreDisplay.innerText = "0";
+    deathScreen.style.display = "none";
+}
+
+function createPipe() {
+    const gap = 220;
+    const height = Math.floor(Math.random() * (canvas.height - gap - 150)) + 75;
+    pipes.push({ x: canvas.width, top: height, bottom: canvas.height - height - gap, passed: false });
+}
+
+// DRAWING THE "FUNNY BURGER" PIPE
+function drawBurgerPipe(x, y, height, isTop) {
+    ctx.save();
+    ctx.translate(x + 40, isTop ? y - 20 : y + 20);
+    
+    // Bun
+    ctx.fillStyle = "#FFA500";
+    ctx.beginPath();
+    if(isTop) ctx.arc(0, 0, 50, Math.PI, 0); 
+    else ctx.arc(0, 0, 50, 0, Math.PI);
+    ctx.fill();
+
+    // Lettuce & Meat layers
+    ctx.fillStyle = "#32CD32"; ctx.fillRect(-55, isTop ? -10 : 0, 110, 10);
+    ctx.fillStyle = "#8B4513"; ctx.fillRect(-55, isTop ? -20 : 10, 110, 15);
+    
+    ctx.restore();
+
+    // The Pipe Stem (The "Cheese" stick)
+    ctx.fillStyle = "#FFD700";
+    if(isTop) ctx.fillRect(x, 0, 80, height - 20);
+    else ctx.fillRect(x, y + 20, 80, canvas.height);
+}
+
+function update() {
+    if (!gameRunning) return;
+    bird.velocity += bird.gravity;
+    bird.y += bird.velocity;
+    bgScroll -= 2;
+
+    if (bird.y + bird.h > canvas.height || bird.y < 0) gameRunning = false;
+
+    if (frame % 80 === 0) createPipe();
+    
+    for (let i = pipes.length - 1; i >= 0; i--) {
+        pipes[i].x -= 6;
+        if (bird.x + bird.w - 10 > pipes[i].x && bird.x + 10 < pipes[i].x + 80) {
+            if (bird.y + 10 < pipes[i].top || bird.y + bird.h - 10 > canvas.height - pipes[i].bottom) {
+                gameRunning = false;
+            }
+        }
+        if (!pipes[i].passed && pipes[i].x < bird.x) {
+            score++; pipes[i].passed = true; scoreDisplay.innerText = score;
+        }
+        if (pipes[i].x < -150) pipes.splice(i, 1);
+    }
+    
+    if(!gameRunning) deathScreen.style.display = "flex";
+    frame++;
+}
+
+function draw() {
+    // 1. Background Gradient
+    let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, "#000033");
+    grad.addColorStop(1, "#660066");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Stars
+    ctx.fillStyle = "white";
+    stars.forEach(s => {
+        s.x -= s.speed;
+        if(s.x < 0) s.x = canvas.width;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI*2);
+        ctx.fill();
+    });
+
+    // 3. Burger Pipes
+    pipes.forEach(p => {
+        drawBurgerPipe(p.x, p.top, p.top, true);
+        drawBurgerPipe(p.x, canvas.height - p.bottom, p.bottom, false);
+    });
+
+    // 4. Character
+    ctx.save();
+    ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
+    ctx.rotate(bird.velocity * 0.05);
+    ctx.beginPath();
+    ctx.arc(0, 0, bird.w/2, 0, Math.PI*2);
+    ctx.clip();
+    if (imgLoaded) ctx.drawImage(birdImg, -bird.w/2, -bird.h/2, bird.w, bird.h);
+    else { ctx.fillStyle = "cyan"; ctx.fill(); }
+    ctx.restore();
+
+    if (gameRunning) {
+        update();
+        requestAnimationFrame(draw);
+    }
+}
+
+function jump() {
+    if (gameRunning) bird.velocity = bird.lift;
+    else init(), draw();
+}
+
+window.addEventListener("mousedown", jump);
+window.addEventListener("touchstart", (e) => { e.preventDefault(); jump(); }, {passive: false});
+window.addEventListener("keydown", (e) => { if(e.code === "Space") jump(); });
+window.addEventListener("resize", init);
+
+init(); draw();
+</script>
+</body>
+</html>
